@@ -2,7 +2,7 @@
 
 A Google web font downloader.
 
-Now you can download them and self-hosted.
+Now you can download them for self-hosted.
 
 ## Requirement
 
