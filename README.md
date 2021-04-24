@@ -1,6 +1,8 @@
 # gwf
 
-A Google web font downloader
+A Google web font downloader.
+
+Now you can download them and self-hosted.
 
 ## Requirement
 
@@ -55,12 +57,6 @@ deno run \
   --allow-read \
   --allow-write \
   mod.ts d "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap"
-```
-
-## Docker
-
-```sh
-docker run --rm -it -v (pwd)/test:/test hayd/deno:alpine-1.9.1 sh
 ```
 
 ## License
