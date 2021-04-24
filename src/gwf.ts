@@ -12,13 +12,14 @@ import {
   minFontFetchTimeoutDelay,
   maxFontFetchTimeoutDelay,
 } from "./constants.ts";
+import version from "../version.ts";
 
 const cwd = Deno.cwd();
 
 const program = new Denomander({
   app_name: "gwf",
   app_description: "A Google web font downloader",
-  app_version: "0.0.1",
+  app_version: version,
 });
 
 program
@@ -109,6 +110,5 @@ program
       fetchFonts(css, targetDir, ua, concurrency, timeout),
     ]);
     console.log("Completed!");
-    console.log(targetDir);
   })
   .parse(Deno.args);
