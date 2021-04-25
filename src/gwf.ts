@@ -23,7 +23,7 @@ const program = new Denomander({
 });
 
 program
-  .command("d [uri]", "Download Google web font")
+  .command("d [url]", "Download Google web font")
   .option("-o --out", "Output directory. Default is current directory")
   .option("-e --empty", "Empty the output dir")
   .option(
@@ -79,7 +79,7 @@ program
   )
   .action(async () => {
     const {
-      uri,
+      url,
       out = "",
       empty,
       name,
@@ -87,7 +87,7 @@ program
       concurrency,
       timeout,
     } = (program as unknown) as {
-      uri: string;
+      url: string;
       out: string;
       empty?: true;
       name: string;
@@ -95,7 +95,7 @@ program
       concurrency: number;
       timeout: number;
     };
-    const res = await fetch(uri, {
+    const res = await fetch(url, {
       headers: {
         "User-Agent": ua,
       },

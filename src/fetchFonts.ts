@@ -1,4 +1,4 @@
-import { fontUriPrefix } from "./constants.ts";
+import { fontUrlPrefix } from "./constants.ts";
 import PQueue, {
   DefaultAddOptions,
 } from "https://deno.land/x/p_queue@1.0.1/mod.ts";
@@ -14,16 +14,16 @@ import {
 const widgets = [percentageWidget, amountWidget];
 
 const checkPrefix = (urls: string[]) => {
-  const urlInUnexpectedUrl = urls.find((url) => !url.startsWith(fontUriPrefix));
+  const urlInUnexpectedUrl = urls.find((url) => !url.startsWith(fontUrlPrefix));
   if (urlInUnexpectedUrl) {
     throw new Error(
-      `${urlInUnexpectedUrl} is not starts with ${fontUriPrefix}.`
+      `${urlInUnexpectedUrl} is not starts with ${fontUrlPrefix}.`
     );
   }
 };
 
 const getTargetPath = (url: string, outPutDir: string) => {
-  const relativePath = url.substring(fontUriPrefix.length);
+  const relativePath = url.substring(fontUrlPrefix.length);
   const targetPath = join(outPutDir, relativePath);
   return targetPath;
 };
