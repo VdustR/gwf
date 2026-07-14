@@ -31,7 +31,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Install Android build dependencies
         shell: bash
@@ -83,7 +82,6 @@ jobs:
           gradle = gradle.replace('resValue "string", "app_name", "Openbor"', 'resValue "string", "app_name", "Final Fight LNS"')
           gradle = gradle.replace("abiFilters 'arm64-v8a', 'armeabi-v7a'", "abiFilters 'arm64-v8a'")
           gradle = gradle.replace("buildToolsVersion '36.0.0'", "buildToolsVersion '35.0.0'")
-          gradle = gradle.replace("ndkVersion '21.4.7075529'", "ndkVersion '21.4.7075529'")
           if 'androidResources {' not in gradle:
               gradle = gradle.replace(
                   'android {',
