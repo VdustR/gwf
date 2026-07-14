@@ -1,0 +1,194 @@
+name: Build Final Fight LNS APK
+
+on:
+  push:
+    branches:
+      - agent/build-final-fight-lns-apk
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PAK_URL: https://github.com/Diegrosan/Final-Fight-LNS-Ultimate/releases/download/FFLNSUltimateV04/Final_Fight_LNS.pak
+      ANDROID_PLATFORM: android-35
+      ANDROID_BUILD_TOOLS: 35.0.0
+      ANDROID_NDK: 21.4.7075529
+
+    steps:
+      - name: Check out build workspace
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install Android build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;${ANDROID_PLATFORM}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${ANDROID_NDK}"
+
+      - name: Fetch OpenBOR source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/DCurrent/openbor.git openbor
+
+      - name: Download Final Fight LNS game package
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_dir="openbor/engine/android/app/src/main/assets"
+          mkdir -p "$asset_dir"
+          curl \
+            --fail \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --connect-timeout 30 \
+            "$PAK_URL" \
+            --output "$asset_dir/bor.pak"
+          test "$(stat -c '%s' "$asset_dir/bor.pak")" -gt 1000000
+          sha256sum "$asset_dir/bor.pak" | tee pak-sha256.txt
+          du -h "$asset_dir/bor.pak"
+
+      - name: Configure standalone optimized APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('openbor/engine/android')
+          gradle_file = root / 'app/build.gradle'
+          gradle = gradle_file.read_text(encoding='utf-8')
+          gradle = gradle.replace('applicationId "org.openbor.engine"', 'applicationId "dev.vdustr.finalfightlns"')
+          gradle = gradle.replace('versionName "1.0.0"', 'versionName "0.4.0-android.1"')
+          gradle = gradle.replace('resValue "string", "app_name", "Openbor"', 'resValue "string", "app_name", "Final Fight LNS"')
+          gradle = gradle.replace("abiFilters 'arm64-v8a', 'armeabi-v7a'", "abiFilters 'arm64-v8a'")
+          gradle = gradle.replace("buildToolsVersion '36.0.0'", "buildToolsVersion '35.0.0'")
+          gradle = gradle.replace("ndkVersion '21.4.7075529'", "ndkVersion '21.4.7075529'")
+          if 'androidResources {' not in gradle:
+              gradle = gradle.replace(
+                  'android {',
+                  "android {\n  androidResources {\n    noCompress += ['pak']\n  }",
+                  1,
+              )
+          gradle_file.write_text(gradle, encoding='utf-8')
+
+          activity_file = root / 'app/src/main/java/org/openbor/engine/GameActivity.java'
+          activity = activity_file.read_text(encoding='utf-8')
+          activity = activity.replace(
+              'import android.support.v4.content.ContextCompat;',
+              'import androidx.core.content.ContextCompat;',
+          )
+          activity = activity.replace(
+              'import android.support.v4.app.ActivityCompat;',
+              'import androidx.core.app.ActivityCompat;',
+          )
+          activity = activity.replace(
+              'byte[] buffer = new byte[1024];',
+              'byte[] buffer = new byte[1024 * 1024];',
+          )
+          activity_file.write_text(activity, encoding='utf-8')
+
+          manifest_file = root / 'app/src/main/AndroidManifest.xml'
+          manifest_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              android:installLocation="auto">
+
+              <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+              <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+              <application
+                  android:allowBackup="false"
+                  android:extractNativeLibs="true"
+                  android:hardwareAccelerated="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:theme="@style/Theme.Custom">
+
+                  <activity
+                      android:name="org.openbor.engine.GameActivity"
+                      android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+                      android:exported="true"
+                      android:screenOrientation="landscape">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          ''', encoding='utf-8')
+
+          properties_file = root / 'gradle.properties'
+          properties = properties_file.read_text(encoding='utf-8') if properties_file.exists() else ''
+          properties = re.sub(r'org\.gradle\.jvmargs=.*', 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8', properties)
+          if 'org.gradle.jvmargs=' not in properties:
+              properties += '\norg.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n'
+          properties_file.write_text(properties, encoding='utf-8')
+          PY
+
+      - name: Build debug-signed APK
+        shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.ANDROID_NDK }}
+        run: |
+          set -euo pipefail
+          cd openbor/engine
+          chmod +x version.sh
+          ./version.sh
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug --stacktrace
+
+      - name: Verify APK structure and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_apk="openbor/engine/android/app/build/outputs/apk/debug/OpenBOR.apk"
+          output_apk="Final-Fight-LNS-Ultimate-v04-arm64.apk"
+          test -f "$source_apk"
+          cp "$source_apk" "$output_apk"
+          unzip -t "$output_apk"
+          unzip -l "$output_apk" | grep -F 'assets/bor.pak'
+          unzip -l "$output_apk" | grep -F 'lib/arm64-v8a/libopenbor.so'
+          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify --verbose --print-certs "$output_apk"
+          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "$output_apk" | tee apk-badging.txt
+          sha256sum "$output_apk" | tee apk-sha256.txt
+          du -h "$output_apk"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Final-Fight-LNS-Ultimate-v04-arm64
+          path: |
+            Final-Fight-LNS-Ultimate-v04-arm64.apk
+            apk-sha256.txt
+            apk-badging.txt
+            pak-sha256.txt
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
